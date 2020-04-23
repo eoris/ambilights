@@ -36,6 +36,7 @@ light:
   - platform: philips_ambilight
     name: Bedroom Ambilight
     host: 192.168.1.XXX
+    mac: 'aa:aa:aa:aa:aa:aa'
     username: !secret philips_username
     password: !secret philips_password
 ```
@@ -66,6 +67,14 @@ Individual effects can be easily removed from the Front-End by removing them fro
 
 ## Known Issues
 - The light component can turn the Ambilight on when the TV is off, however, after the TV has been in standby for a long period of time, the component will lose connection, and will be unable to turn the lights on again until the TV is woken up and reconnects - this can be solved by manually turning on the TV and then changing the ambilight, or through the use of an IR blaster connected to Home Assistant to achieve the same result. Alternatively you can install the Wakelock app (https://github.com/d4rken/wakelock-revamp/releases/latest) and enable `Processor` and `Screen dimmed` wakelocks (and enable the app at startup) so that the TV remains online even when in sleep mode.
+
+## Special requirements for turning the TV back on from Standby
+Essentially wake-on-lan wakes up the API part of the TV. Then the TV is able to receive a command to turn the Ambilight on.
+
+You have to enable WoWLAN under Settings->Wireless&Networks->Wired&Wifi->Switch on with Wi-Fi (WoWLAN)
+And add the Wifi MAC address to your config.
+
+I believe this can also work using the LAN MAC, but I am running it currently with the WoWLAN feature.
 
 ## Older Philips TV's
 Older (non-Android) Philips TV's with ambilight, which use the JointSpace API, may be controllable through this component, try changing the `BASE_URL` on line 20 to `http://{0}:1925/1/{1}`. Note: as the older API does not use HTTPS, there is no need for the `username` and  `password` fields to be generated or placed into your `configuration.yaml`, there may also be changes needed to the `_getReq()` and `_postReq()` sections to accommodate this, If anyone is successful with this, let me know and I will update this section.

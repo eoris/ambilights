@@ -2,18 +2,20 @@
 
 
 import json
+import time
 import string
 import requests
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 from homeassistant.components.light import (ATTR_BRIGHTNESS, Light, PLATFORM_SCHEMA, ATTR_HS_COLOR,
                                             SUPPORT_BRIGHTNESS, SUPPORT_COLOR, ATTR_EFFECT, SUPPORT_EFFECT)
-from homeassistant.const import (CONF_HOST, CONF_NAME, CONF_USERNAME, CONF_PASSWORD)
+from homeassistant.const import (CONF_HOST, CONF_MAC, CONF_NAME, CONF_USERNAME, CONF_PASSWORD)
 from requests.auth import HTTPDigestAuth
 from requests.adapters import HTTPAdapter
 
 DEFAULT_DEVICE = 'default'
 DEFAULT_HOST = '127.0.0.1'
+DEFAULT_MAC = 'aa:aa:aa:aa:aa:aa'
 DEFAULT_USER = 'user'
 DEFAULT_PASS = 'pass'
 DEFAULT_NAME = 'TV Ambilights'
@@ -24,9 +26,9 @@ DEFAULT_BRIGHTNESS = 255
 TIMEOUT = 5.0
 CONNFAILCOUNT = 5
 
-
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
 	vol.Required(CONF_HOST, default=DEFAULT_HOST): cv.string,
+	vol.Required(CONF_MAC, default=DEFAULT_MAC): cv.string,
 	vol.Required(CONF_USERNAME, default=DEFAULT_USER): cv.string,
 	vol.Required(CONF_PASSWORD, default=DEFAULT_PASS): cv.string,
 	vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string
@@ -58,19 +60,23 @@ AMBILIGHT_EFFECT_LIST = [EFFECT_MANUAL, EFFECT_STANDARD, EFFECT_NATURAL, EFFECT_
 def setup_platform(hass, config, add_devices, discovery_info=None):
 	name = config.get(CONF_NAME)
 	host = config.get(CONF_HOST)
+	mac = config.get(CONF_MAC)
 	user = config.get(CONF_USERNAME)
 	password = config.get(CONF_PASSWORD)
-	add_devices([Ambilight(name, host, user, password)])
+	add_devices([Ambilight(name, host, mac, user, password)])
 
 OLD_STATE = [DEFAULT_HUE, DEFAULT_SATURATION, DEFAULT_BRIGHTNESS, DEFAULT_EFFECT]
 
 class Ambilight(Light):
 
-    def __init__(self, name, host, user, password):
+    def __init__(self, name, host, mac, user, password):
+        import wakeonlan
         self._name = name
         self._host = host
+        self._mac = mac
         self._user = user
         self._password = password
+        self._wol = wakeonlan
         self._state = None
         self._connfail = 0
         self._brightness = None
@@ -88,10 +94,6 @@ class Ambilight(Light):
     @property
     def is_on(self):
         return self._state
-
-    @property
-    def available(self):
-        return self._available
 
     @property
     def supported_features(self):
@@ -117,7 +119,16 @@ class Ambilight(Light):
     def should_poll(self):
         return True
 
+    def wol(self):
+        self._wol.send_magic_packet(self._mac)
+
     def turn_on(self, **kwargs):
+        i = 0
+        while not self._available and i < 10:
+            self.wol()
+            time.sleep(3)
+            self.getState()
+            i += 1
         if ATTR_HS_COLOR in kwargs:
             self._hs = kwargs[ATTR_HS_COLOR]
             convertedHue = int(self._hs[0]*(255/360))
